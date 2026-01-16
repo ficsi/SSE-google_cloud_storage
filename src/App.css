@@ -36,3 +36,48 @@
     transform: rotate(360deg);
   }
 }
+tr {
+  /* position: relative; */
+}
+
+.row-num {
+  font-weight: 600;
+
+  /* display: block;
+  background: #3ad669;
+  width: 20px;
+  height: 48px;
+  position: absolute;
+  left: -20px;
+  margin-top:0px; */
+  cursor: pointer;
+  /* line-height: 48px; */
+  /* text-align: center; */
+}
+tr.active {
+  background: rgba(197, 40, 40, 0.3) !important;
+}
+tbody {
+  counter-reset: row;
+}
+.card-title {
+  float: left;
+  font-size: 1.5rem;
+}
+tbody tr {
+  counter-increment: row;
+}
+.clear-selections {
+  background-color: #f10a0a;
+  border: 1px solid #d2d2db;
+  color: #fff;
+  font-weight: 600;
+  border-radius: 15px;
+  padding: 0px;
+  height: 28px;
+  align-items: center;
+  width: 28px;
+  justify-content: center;
+  line-height: 0;
+  margin-left: 20px;
+}
