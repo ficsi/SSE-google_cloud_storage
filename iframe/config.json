@@ -1,0 +1,35 @@
+
+{
+  "branding": {
+    "bank":{
+      "title": "<strong></strong><strong>IMPS </strong>is for <strong>instant</strong> deposits:<br/>Limits: <strong>₹20,000 -  ₹100,000</strong><br/><br/><strong>RTGS</strong> is for <strong>instant</strong> deposits:<br/>Limits: <strong>₹101,000 - ₹500,000</strong> <br/><strong>NEFT</strong> is credited in <strong>up to 60 mins:</strong><br/>Limits: <strong>₹101,000 - ₹500,000 </strong>"
+    },
+    "upi":{
+      "title":"Send money and submit UTR for confirmation."
+    }
+},
+  "upiOptions": [
+      {
+      "label": "UPI 1",
+      "upiId": "sumit8788@mahb",
+      "qrImageUrl": "./image_1.png"
+    },
+    {
+      "label": "UPI 2",
+      "upiId": "7435816448@ptyes",
+      "qrImageUrl": "./image_2.png"
+    }
+  ]
+  ,
+
+  "bankOptions": [
+    {
+      "label": "Bank Transfer",
+      "bankName": "Bank of Maharashtra",
+      "accountNumber": "60547671038",
+      "ifsc": "MAHB0001230",
+      "accountHolder": "Mr. Sumit Sainath Sarode"
+    }
+  ]
+
+}

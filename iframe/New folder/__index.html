@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="bg">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Deposit</title>
+    <style>
+      :root {
+        --bg: #f4f6fb;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --primary: #6d5efc;
+        --primary2: #44b7ff;
+        --line: #e6eaf2;
+        --danger: #ef4444;
+        --ok: #16a34a;
+        --warn: #f59e0b;
+        --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+        --radius: 18px;
+      }
+
+      * {
+        box-sizing: border-box;
+        text-decoration: none;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
+          Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        background: var(--bg);
+        color: var(--text);
+      }
+      a {
+        color: inherit;
+      }
+      .wrap {
+        max-width: 420px;
+        margin: 0 auto;
+        padding: 18px 14px 24px;
+      }
+
+      .phone {
+        background: linear-gradient(180deg, #ffffff, #f7f9ff);
+        border: 1px solid var(--line);
+        border-radius: 26px;
+        box-shadow: var(--shadow);
+        padding: 16px;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 4px;
+      }
+      .header .icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--primary), var(--primary2));
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-weight: 700;
+      }
+      .subtitle {
+        text-align: center;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+        margin: 10px 10px 14px;
+      }
+
+      .tabs {
+        display: flex;
+        background: #eef2ff;
+        border-radius: 14px;
+        padding: 4px;
+        gap: 4px;
+        margin: 10px 0 14px;
+      }
+      .tab {
+        flex: 1;
+        border: 0;
+        background: transparent;
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 12px;
+        color: #334155;
+        cursor: pointer;
+      }
+      .tab.active {
+        background: linear-gradient(135deg, var(--primary), #884af6);
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(109, 94, 252, 0.25);
+      }
+
+      .field {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+      .label {
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+      }
+
+      .copyrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 10px;
+        border: 1px solid #edf1f8;
+        border-radius: 12px;
+        background: #fbfcff;
+        cursor: pointer;
+        user-select: none;
+      }
+      .copyrow:active {
+        transform: translateY(1px);
+      }
+      .copyval {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 13px;
+        color: #0f172a;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .copybtn {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        border: 1px solid #e9ecf5;
+        background: #fff;
+        color: #334155;
+        flex: 0 0 auto;
+      }
+
+      .pill {
+        background: linear-gradient(135deg, var(--primary), #7c6bff);
+        color: #fff;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-weight: 900;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        box-shadow: 0 8px 18px rgba(109, 94, 252, 0.25);
+      }
+
+      .qrCard {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 14px;
+        display: grid;
+        place-items: center;
+        margin-bottom: 10px;
+      }
+      .qrCard img {
+        width: 210px;
+        height: 210px;
+        object-fit: contain;
+        border-radius: 12px;
+        background: #fff;
+      }
+      .downloadQR {
+        width: 100%;
+        margin-top: 10px;
+        border: 0;
+        cursor: pointer;
+        padding: 12px 14px;
+        border-radius: 999px;
+        font-weight: 900;
+        color: #fff;
+        background: linear-gradient(135deg, var(--primary), #884af6);
+        box-shadow: 0 10px 20px rgba(109, 94, 252, 0.25);
+      }
+
+      .utrBox {
+        border: 1px solid #c7d2fe;
+        background: #f5f7ff;
+        border-radius: 16px;
+        padding: 12px;
+        margin-top: 12px;
+      }
+      .utrTop {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .utrIcon {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background: #e0e7ff;
+        display: grid;
+        place-items: center;
+        color: #4338ca;
+        font-weight: 900;
+        flex: 0 0 auto;
+      }
+      .utrTitle {
+        font-weight: 900;
+        font-size: 13px;
+        margin: 2px 0 2px;
+      }
+      .utrHelp {
+        color: var(--muted);
+        font-size: 11px;
+        margin: 0;
+      }
+
+      .utrInputRow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      input[type="text"] {
+        width: 100%;
+        border: 2px solid #dbe4ff;
+        background: #fff;
+        border-radius: 12px;
+        padding: 12px 12px;
+        font-size: 14px;
+        outline: none;
+      }
+      input[type="text"]:focus {
+        border-color: #7c6bff;
+        box-shadow: 0 0 0 4px rgba(124, 107, 255, 0.18);
+      }
+
+      /* ✅ validation visuals */
+      .utrInput.ok {
+        border-color: rgba(22, 163, 74, 0.65);
+        box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12);
+      }
+      .utrInput.bad {
+        border-color: rgba(239, 68, 68, 0.65);
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+      }
+
+      .count {
+        color: #16a34a;
+        font-weight: 900;
+        font-size: 12px;
+        min-width: 54px;
+        text-align: right;
+      }
+      .count.bad {
+        color: var(--danger);
+      }
+
+      .notice {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        border-left: 6px solid var(--warn);
+        border-radius: 14px;
+        padding: 10px 12px;
+      }
+      .notice b {
+        display: block;
+        font-size: 12px;
+        margin-bottom: 2px;
+      }
+      .notice p {
+        margin: 0;
+        color: #92400e;
+        font-size: 11px;
+        line-height: 1.35;
+      }
+
+      .upload {
+        margin-top: 10px;
+        background: #fff;
+        border: 1px dashed #cbd5e1;
+        border-radius: 16px;
+        padding: 12px;
+      }
+      .upload small {
+        color: var(--muted);
+        display: block;
+        margin-top: 4px;
+      }
+
+      .btnPrimary {
+        width: 100%;
+        margin-top: 12px;
+        border: 0;
+        cursor: pointer;
+        padding: 14px 14px;
+        border-radius: 12px;
+        font-weight: 900;
+        color: #fff;
+        background: linear-gradient(135deg, #cbd5e1, #cbd5e1);
+        opacity: 0.7;
+      }
+      .btnPrimary.enabled {
+        background: linear-gradient(135deg, var(--primary), #7c6bff);
+        opacity: 1;
+        box-shadow: 0 10px 20px rgba(109, 94, 252, 0.25);
+      }
+
+      .btnCancel {
+        width: 100%;
+        margin-top: 10px;
+        border: 2px solid var(--danger);
+        cursor: pointer;
+        padding: 12px 14px;
+        border-radius: 12px;
+        font-weight: 900;
+        color: var(--danger);
+        background: #fff;
+      }
+
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        background: rgba(15, 23, 42, 0.92);
+        color: #fff;
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        display: none;
+        max-width: 92vw;
+        z-index: 9999;
+      }
+
+      .mutedFoot {
+        margin-top: 12px;
+        text-align: center;
+        color: #94a3b8;
+        font-size: 11px;
+      }
+      .emailInput,
+      .usernameInput {
+        width: 100%;
+        border: 2px solid #dbe4ff;
+        background: #fff;
+        border-radius: 12px;
+        padding: 12px 12px;
+        font-size: 14px;
+        outline: none;
+        margin-top: 2px;
+      }
+
+      .emailInput:focus,
+      .usernameInput:focus {
+        border-color: #7c6bff;
+        box-shadow: 0 0 0 4px rgba(124, 107, 255, 0.18);
+      }
+
+      /* optional validation states */
+      .emailInput.ok,
+      .usernameInput.ok {
+        border-color: rgba(22, 163, 74, 0.65);
+        box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12);
+      }
+
+      .emailInput.bad,
+      .usernameInput.bad {
+        border-color: rgba(239, 68, 68, 0.65);
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="wrap">
+      <div class="phone">
+        <div class="header">
+          <div class="icon">💳</div>
+        </div>
+
+        <div class="subtitle" id="subtitle"></div>
+
+        <!-- ✅ Tab buttons MUST be type="button" -->
+        <div class="tabs" role="tablist" aria-label="UPI options">
+          <button
+            class="tab active"
+            id="tab-upi-0"
+            type="button"
+            role="tab"
+            aria-selected="true"
+          >
+            UPI 1
+          </button>
+          <button
+            class="tab"
+            id="tab-upi-1"
+            type="button"
+            role="tab"
+            aria-selected="false"
+          >
+            UPI 2
+          </button>
+        </div>
+
+        <div class="field">
+          <div class="label">Amount</div>
+          <div class="copyrow" id="copy-amount" data-copy="">
+            <div class="copyval" id="amountText">₹0</div>
+            <div class="copybtn" title="Copy">⧉</div>
+          </div>
+        </div>
+
+        <!-- UPI panel -->
+        <div id="panel-upi">
+          <div class="field">
+            <div class="label">UPI ID</div>
+            <div class="copyrow" id="copy-upi" data-copy="">
+              <div class="copyval" id="upiText">-</div>
+              <div class="copybtn" title="Copy">⧉</div>
+            </div>
+          </div>
+
+          <div class="qrCard">
+            <img id="qrImg" alt="QR code" />
+            <button class="downloadQR" id="downloadQR" type="button">
+              ⬇ Download QR
+            </button>
+          </div>
+        </div>
+
+        <!-- Upi2 panel -->
+        <div id="panel-upi-2" style="display: none">
+          <div class="field">
+            <div class="label">Bank name</div>
+            <div class="copyrow" id="copy-bankName-2" data-copy="">
+              <div class="copyval" id="copy-upiName-2">-</div>
+              <div class="copybtn" title="Copy">⧉</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="label">Account number</div>
+            <div class="copyrow" id="copy-accountNumber" data-copy="">
+              <div class="copyval" id="accountNumberText">-</div>
+              <div class="copybtn" title="Copy">⧉</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="label">IFSC code</div>
+            <div class="copyrow" id="copy-ifsc" data-copy="">
+              <div class="copyval" id="ifscText">-</div>
+              <div class="copybtn" title="Copy">⧉</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="label">Account holder</div>
+            <div class="copyrow" id="copy-accountHolder" data-copy="">
+              <div class="copyval" id="accountHolderText">-</div>
+              <div class="copybtn" title="Copy">⧉</div>
+            </div>
+          </div>
+        </div>
+
+        <form id="depositForm">
+          <div class="utrBox">
+            <div class="utrTop">
+              <div class="utrIcon">
+                <img src="/DEPOSIT-GCP/iframe/bank.svg" width="16" alt="" />
+              </div>
+              <div>
+                <div class="utrTitle">UTR/Reference Number</div>
+                <p class="utrHelp">12-digit number from your payment screen</p>
+              </div>
+            </div>
+
+            <div class="utrInputRow">
+              <input
+                id="utr"
+                class="utrInput"
+                name="utr"
+                type="text"
+                inputmode="numeric"
+                maxlength="12"
+                placeholder="Enter UTR/Reference ID"
+                autocomplete="off"
+              />
+              <div class="count" id="utrCount">0/12</div>
+            </div>
+
+            <div class="notice">
+              <div style="font-size: 18px">⚠️</div>
+              <div>
+                <b>Important Notice</b>
+                <p>
+                  Please ensure you enter the correct UTR number, otherwise the
+                  deposit will not be processed successfully.
+                </p>
+              </div>
+            </div>
+          </div>
+          <!-- Email -->
+          <div class="emailInputRow" style="margin-top: 12px">
+            <input
+              id="email"
+              class="emailInput"
+              name="email"
+              type="email"
+              placeholder="Enter your email address"
+              autocomplete="email"
+            />
+          </div>
+
+          <!-- Username -->
+          <div class="usernameInputRow" style="margin-top: 10px">
+            <input
+              id="username"
+              class="usernameInput"
+              name="username"
+              type="text"
+              placeholder="Enter your username"
+              autocomplete="off"
+            />
+          </div>
+          <!-- <div class="upload">
+            <div style="font-weight:900;">Upload Screenshot</div>
+            <small>Image only (PNG/JPG). Required.</small>
+            <div style="margin-top:10px;">
+              <input id="screenshot" name="screenshot" type="file" accept="image/*" />
+            </div>
+          </div> -->
+
+          <button id="submitBtn" class="btnPrimary" type="submit" disabled>
+            Pay and Confirm
+          </button>
+          <button class="btnCancel" type="button" id="cancelBtn">
+            <a href="https://betvibe.in/my-account/bank?tab=deposit"
+              >Cancel Payment</a
+            >
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+      // -------------------------------------------------
+      // Query params: ?config=... & ?tab=upi|bank
+      // -------------------------------------------------
+      const qp = new URLSearchParams(location.search);
+      const CONFIG_URL = qp.get("config") || "./data.json";
+      const DEFAULT_TAB = (qp.get("tab") || "upi").toLowerCase();
+      const SUBMIT_URL =
+        "https://us-central1-betvibe.cloudfunctions.net/submitDeposit";
+
+      const $ = (id) => document.getElementById(id);
+
+      function showToast(msg) {
+        const t = $("toast");
+        t.textContent = msg;
+        t.style.display = "block";
+        clearTimeout(showToast._tm);
+        showToast._tm = setTimeout(() => (t.style.display = "none"), 1400);
+      }
+
+      async function copyText(text) {
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast("Copied");
+        } catch {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+          showToast("Copied");
+        }
+      }
+
+      function fmtAmount(amount) {
+        const n = Number(amount || 0);
+        return "₹" + (Number.isFinite(n) ? n.toString() : "0");
+      }
+
+      function bindCopyRow(rowId, getValue) {
+        const row = $(rowId);
+        row.addEventListener("click", () => copyText(getValue()));
+      }
+
+      function setTab(active) {
+        const isUPI = active === "upi";
+        $("tab-upi").classList.toggle("active", isUPI);
+        $("tab-bank").classList.toggle("active", !isUPI);
+        $("tab-upi").setAttribute("aria-selected", String(isUPI));
+        $("tab-bank").setAttribute("aria-selected", String(!isUPI));
+        $("panel-upi").style.display = isUPI ? "" : "none";
+        $("panel-upi-2").style.display = isUPI ? "none" : "";
+        document.body.dataset.method = isUPI ? "UPI" : "BANK";
+      }
+      function validateEmail() {
+        const el = $("email");
+        if (!el) return true; // if field removed later
+        const v = el.value.trim();
+        const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+        el.classList.remove("ok", "bad");
+        if (!v) return false;
+        el.classList.add(ok ? "ok" : "bad");
+        return ok;
+      }
+
+      function validateUsername() {
+        const el = $("username");
+        if (!el) return true;
+        const v = el.value.trim();
+        const ok = v.length >= 3;
+
+        el.classList.remove("ok", "bad");
+        if (!v) return false;
+        el.classList.add(ok ? "ok" : "bad");
+        return ok;
+      }
+      function validateUtr() {
+        const inp = $("utr");
+        const v = inp.value.trim();
+        const isOk = /^\d{12}$/.test(v);
+
+        // visuals
+        inp.classList.remove("ok", "bad");
+        const count = $("utrCount");
+        count.classList.remove("bad");
+
+        if (v.length === 0) {
+          // neutral
+        } else if (isOk) {
+          inp.classList.add("ok");
+        } else {
+          inp.classList.add("bad");
+          count.classList.add("bad");
+        }
+
+        return isOk;
+      }
+
+      function updateSubmitEnabled() {
+        setActiveTab(0);
+
+        const okUtr = validateUtr();
+        // const okFile = !!$("screenshot").files?.[0];
+        const okEmail = validateEmail();
+        const okUser = validateUsername();
+
+        const btn = $("submitBtn");
+        const enabled = okUtr && okEmail && okUser;
+
+        btn.disabled = !enabled;
+        btn.classList.toggle("enabled", enabled);
+      }
+
+      async function init() {
+        // ✅ tabs (working)
+        const upiOptions = Array.isArray(cfg.upiOptions) ? cfg.upiOptions : [];
+        let activeIndex = 0;
+
+        function getActiveUpi() {
+          return upiOptions[activeIndex] || {};
+        }
+
+        function setActiveTab(i) {
+          activeIndex = i;
+
+          // tabs UI
+          $("tab-upi-0").classList.toggle("active", i === 0);
+          $("tab-upi-1").classList.toggle("active", i === 1);
+          $("tab-upi-0").setAttribute(
+            "aria-selected",
+            i === 0 ? "true" : "false"
+          );
+          $("tab-upi-1").setAttribute(
+            "aria-selected",
+            i === 1 ? "true" : "false"
+          );
+
+          // update displayed values
+          const opt = getActiveUpi();
+          $("upiText").textContent = opt.upiId || "-";
+
+          const qrUrl = opt.qrImageUrl || "";
+          if (qrUrl) {
+            $("qrImg").src = qrUrl;
+            $("downloadQR").disabled = false;
+          } else {
+            $("qrImg").src = "./image.png";
+            $("downloadQR").disabled = true;
+          }
+        }
+        // (optional) set tab labels from config
+        $("tab-upi-0").textContent = upiOptions[0]?.label || "UPI 1";
+        $("tab-upi-1").textContent = upiOptions[1]?.label || "UPI 2";
+
+        $("tab-upi-0").addEventListener("click", () => setActiveTab(0));
+        $("tab-upi-1").addEventListener("click", () => setActiveTab(1));
+
+        $("email").addEventListener("input", updateSubmitEnabled);
+        $("username").addEventListener("input", updateSubmitEnabled);
+
+        setTab(DEFAULT_TAB === "bank" ? "bank" : "upi");
+
+        // UTR input behavior
+        $("utr").addEventListener("input", () => {
+          $("utr").value = $("utr").value.replace(/\D/g, "").slice(0, 12);
+          $("utrCount").textContent = `${$("utr").value.length}/12`;
+          updateSubmitEnabled();
+        });
+
+        // $("screenshot").addEventListener("change", updateSubmitEnabled);
+
+        $("cancelBtn").addEventListener("click", () => {
+          $("depositForm").reset();
+          $("utrCount").textContent = "0/12";
+          $("utr").classList.remove("ok", "bad");
+          $("utrCount").classList.remove("bad");
+          updateSubmitEnabled();
+          showToast("Cancelled");
+        });
+
+        // Load config (with URL param support)
+        const res = await fetch(CONFIG_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error("Failed to load config JSON");
+        const cfg = await res.json();
+
+        // subtitle
+        $("subtitle").textContent =
+          cfg?.branding?.title ||
+          "Send money via QR, UPI, or IMPS transfer and submit the UTR for final confirmation.";
+
+        // amount (copy)
+        $("amountText").textContent = fmtAmount(cfg.amount);
+        bindCopyRow("copy-amount", () => String(cfg.amount ?? ""));
+
+        // startTimer(cfg.expirySeconds ?? 1200);
+
+        // UPI
+        $("upiText").textContent = cfg?.upi?.upiId || "-";
+        bindCopyRow("copy-upi", () => String(cfg?.upi?.upiId || ""));
+
+        // QR
+        const qrUrl = cfg?.upi?.qrImageUrl || "";
+        if (qrUrl) {
+          $("qrImg").src = qrUrl;
+          $("downloadQR").addEventListener("click", async () => {
+            const opt = getActiveUpi();
+            const qrUrl = opt.qrImageUrl || "";
+            if (!qrUrl) return;
+
+            try {
+              const resp = await fetch(qrUrl, {
+                mode: "cors",
+                cache: "no-store",
+              });
+              if (!resp.ok) throw new Error("CORS blocked");
+
+              const blob = await resp.blob();
+              const blobUrl = URL.createObjectURL(blob);
+
+              const a = document.createElement("a");
+              a.href = blobUrl;
+              a.download = "qr.png";
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+
+              URL.revokeObjectURL(blobUrl);
+              toast("QR downloaded");
+            } catch {
+              window.open(qrUrl, "_blank");
+              toast("Opened QR — save it");
+            }
+          });
+        } else {
+          $("downloadQR").disabled = true;
+          $("qrImg").alt = "QR not available";
+        }
+
+        // Bank
+        $("copy-upi").addEventListener("click", () => {
+          const opt = getActiveUpi();
+          copyText(String(opt.upiId || ""));
+        });
+        $("accountNumberText").textContent = cfg?.bank?.accountNumber || "-";
+        $("ifscText").textContent = cfg?.bank?.ifsc || "-";
+        $("accountHolderText").textContent = cfg?.bank?.accountHolder || "-";
+
+        bindCopyRow("copy-bankName-2", () => String(cfg?.bank?.bankName || ""));
+        bindCopyRow("copy-accountNumber", () =>
+          String(cfg?.bank?.accountNumber || "")
+        );
+        bindCopyRow("copy-ifsc", () => String(cfg?.bank?.ifsc || ""));
+        bindCopyRow("copy-accountHolder", () =>
+          String(cfg?.bank?.accountHolder || "")
+        );
+
+        // Submit
+        $("depositForm").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          updateSubmitEnabled();
+          if ($("submitBtn").disabled) return;
+
+          const utr = $("utr").value.trim();
+          //   const file = $("screenshot").files?.[0];
+          const method = document.body.dataset.method || "UPI";
+
+          const fd = new FormData();
+          const opt = getActiveUpi();
+          fd.append("upiId", String(opt.upiId || ""));
+          fd.append("qrImageUrl", String(opt.qrImageUrl || ""));
+
+          fd.append("amount", String(cfg.amount ?? ""));
+          fd.append("method", method);
+          fd.append("email", $("email").value.trim());
+          fd.append("username", $("username").value.trim());
+          //   fd.append("screenshot", file, file.name);
+
+          // Optional extras for your DB (remove if you don't want them)
+          //   fd.append("upiId", String(cfg?.upi?.upiId || ""));
+          //   fd.append("bankName", String(cfg?.bank?.bankName || ""));
+          //   fd.append("accountNumber", String(cfg?.bank?.accountNumber || ""));
+          //   fd.append("ifsc", String(cfg?.bank?.ifsc || ""));
+          //   fd.append("accountHolder", String(cfg?.bank?.accountHolder || ""));
+
+          const btn = $("submitBtn");
+          btn.disabled = true;
+          btn.classList.remove("enabled");
+          btn.textContent = "Submitting...";
+
+          try {
+            const r = await fetch(SUBMIT_URL, { method: "POST", body: fd });
+            const data = await r.json().catch(() => ({}));
+
+            if (!r.ok)
+              throw new Error(data?.error || `Submit failed (${r.status})`);
+
+            showToast("Submitted ✅");
+            btn.textContent = "Submitted";
+          } catch (err) {
+            console.error(err);
+            showToast(err?.message || "Submit error");
+            btn.textContent = "Pay and Confirm";
+            updateSubmitEnabled();
+          }
+        });
+
+        updateSubmitEnabled();
+      }
+
+      init().catch((e) => {
+        console.error(e);
+        showToast("Config load error");
+      });
+    </script>
+  </body>
+</html>

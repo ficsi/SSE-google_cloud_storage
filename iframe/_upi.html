@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="bg">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>UPI Deposit</title>
+    <style>
+      :root {
+        --bg: #f4f6fb;
+        --card: #fff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --primary: #6d5efc;
+        --line: #e6eaf2;
+        --danger: #ef4444;
+        --ok: #16a34a;
+        --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 420px;
+        margin: 0 auto;
+        padding: 18px 14px 24px;
+      }
+      .phone {
+        background: linear-gradient(180deg, #fff, #f7f9ff);
+        border: 1px solid var(--line);
+        border-radius: 26px;
+        box-shadow: var(--shadow);
+        padding: 16px;
+      }
+      .subtitle {
+        text-align: center;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+        margin: 10px 10px 14px;
+      }
+      .field {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+      .label {
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+      }
+
+      /* Copy rows */
+      .copyrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px;
+        border: 1px solid #edf1f8;
+        border-radius: 12px;
+        background: #fbfcff;
+        cursor: pointer;
+        user-select: none;
+      }
+      .copyval {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 13px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .copybtn {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        border: 1px solid #e9ecf5;
+        background: #fff;
+      }
+
+      /* QR */
+      .qrCard {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 14px;
+        display: grid;
+        place-items: center;
+        margin-bottom: 10px;
+      }
+      .qrCard img {
+        width: 210px;
+        height: 210px;
+        object-fit: contain;
+        border-radius: 12px;
+        background: #fff;
+      }
+      .downloadQR {
+        width: 100%;
+        margin-top: 10px;
+        border: 0;
+        cursor: pointer;
+        padding: 12px 14px;
+        border-radius: 999px;
+        font-weight: 900;
+        color: #fff;
+        background: linear-gradient(135deg, var(--primary), #7c6bff);
+        box-shadow: 0 10px 20px rgba(109, 94, 252, 0.25);
+      }
+
+      /* UTR section */
+      .utrBox {
+        border: 1px solid #c7d2fe;
+        background: #f5f7ff;
+        border-radius: 16px;
+        padding: 12px;
+        margin-top: 12px;
+      }
+      .utrTitle,
+      .amountTitle {
+        font-weight: 900;
+        font-size: 13px;
+        margin: 0 0 6px;
+      }
+      .notice {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        border-left: 6px solid #f59e0b;
+        border-radius: 14px;
+        padding: 10px 12px;
+        align-items: center;
+        font-size: 12px;
+      }
+      .notice p {
+        margin: 0;
+        color: #92400e;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+      }
+      input {
+        width: 100%;
+        border: 2px solid #dbe4ff;
+        background: #fff;
+        border-radius: 12px;
+        padding: 12px;
+        font-size: 14px;
+        outline: none;
+      }
+      input:focus {
+        border-color: #7c6bff;
+        box-shadow: 0 0 0 4px rgba(124, 107, 255, 0.18);
+      }
+      .ok {
+        border-color: rgba(22, 163, 74, 0.65) !important;
+        box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.12) !important;
+      }
+      .bad {
+        border-color: rgba(239, 68, 68, 0.65) !important;
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1) !important;
+      }
+      .row {
+        margin-top: 10px;
+      }
+
+      /* Submit */
+      .btn {
+        width: 100%;
+        margin-top: 12px;
+        border: 0;
+        cursor: pointer;
+        padding: 14px;
+        border-radius: 12px;
+        font-weight: 900;
+        color: #fff;
+        background: #cbd5e1;
+        opacity: 0.7;
+      }
+      .btn.enabled {
+        background: linear-gradient(135deg, var(--primary), #7c6bff);
+        opacity: 1;
+        box-shadow: 0 10px 20px rgba(109, 94, 252, 0.25);
+      }
+
+      /* Toast */
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        background: rgba(15, 23, 42, 0.92);
+        color: #fff;
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        display: none;
+        z-index: 9999;
+      }
+
+      /* Tabs */
+      .tabs {
+        display: flex;
+        background: #eef2ff;
+        border-radius: 14px;
+        padding: 4px;
+        gap: 4px;
+        margin: 10px 0 14px;
+      }
+      .tab {
+        flex: 1;
+        border: 0;
+        background: transparent;
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-weight: 800;
+        font-size: 12px;
+        color: #334155;
+        cursor: pointer;
+      }
+      .tab.active {
+        background: linear-gradient(135deg, var(--primary), #884af6);
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(109, 94, 252, 0.25);
+      }
+
+      /* UTR input + counter */
+      .utrInputRow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 8px;
+      }
+      .utrInput {
+        flex: 1;
+        border: 2px solid #dbe4ff;
+        background: #fff;
+        border-radius: 12px;
+        padding: 12px;
+        font-size: 14px;
+        outline: none;
+      }
+      .utrInput:focus {
+        border-color: #7c6bff;
+        box-shadow: 0 0 0 4px rgba(124, 107, 255, 0.18);
+      }
+      .utrInput.ok {
+        border-color: rgba(22, 163, 74, 0.7);
+        box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);
+      }
+      .utrInput.bad {
+        border-color: rgba(239, 68, 68, 0.7);
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.14);
+      }
+      .utrCount {
+        min-width: 54px;
+        text-align: right;
+        font-weight: 900;
+        font-size: 12px;
+        color: #16a34a;
+      }
+      .utrCount.bad {
+        color: #ef4444;
+      }
+
+      /* Success overlay */
+      .successOverlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 999999;
+        background: rgba(0, 0, 0, 0.22);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+      .successOverlay.show {
+        display: flex;
+      }
+      .successCard {
+        width: min(420px, calc(100% - 32px));
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        border-radius: 18px;
+        padding: 22px 18px;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+        text-align: center;
+      }
+      .successIcon {
+        width: 54px;
+        height: 54px;
+        margin: 0 auto 10px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        font-size: 26px;
+        font-weight: 900;
+        background: rgba(34, 197, 94, 0.16);
+        color: #166534;
+        border: 1px solid rgba(34, 197, 94, 0.35);
+      }
+      .successTitle {
+        font-size: 18px;
+        font-weight: 900;
+        margin-bottom: 6px;
+        color: #111827;
+      }
+      .successText {
+        font-size: 14px;
+        line-height: 1.35;
+        color: #374151;
+      }
+
+      /* Cancel */
+      .cancelBtn {
+        width: 100%;
+        margin-top: 10px;
+        background: rgba(255, 0, 0, 0.048);
+        border: 1px solid #e53e3e;
+        color: #e53e3e;
+        padding: 16px 24px;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      .cancelBtn:active {
+        transform: translateY(1px);
+      }
+
+      /* Amount input row */
+      .copyrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .copyinput {
+        flex: 1;
+        width: 100%;
+        padding: 12px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        outline: none;
+        font-weight: 800;
+      }
+      .hint {
+        margin-top: 6px;
+        margin-bottom: 6px;
+
+        font-size: 12px;
+        color: rgba(0, 0, 0, 0.55);
+      }
+      .flex {
+        display: flex;
+      }
+      .align-center {
+        align-items: center;
+      }
+      .notice .align-center{
+            padding-bottom: 2px;
+      }
+      /* remove number spinners */
+      input::-webkit-outer-spin-button,
+      input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+      input[type="number"] {
+        -moz-appearance: textfield;
+        font-size: 14px;
+        font-weight: normal;
+        border: 2px solid #dbe4ff;
+      }
+      .amount-label {
+        padding: 0;
+        border: none;
+        background: transparent;
+        cursor: default;
+        margin-bottom: 16px;
+      }
+      #submitBtn {
+        font-size: 16px;
+      }
+      .cancelBtn {
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body data-method="UPI">
+    <div class="wrap">
+      <div class="phone">
+        <div
+          class="tabs"
+          id="upiTabs"
+          role="tablist"
+          aria-label="UPI options"
+        ></div>
+
+        <!-- <div class="tabs" role="tablist" aria-label="UPI options">
+          <button
+            class="tab active"
+            id="tab-upi-0"
+            type="button"
+            role="tab"
+            aria-selected="true"
+          >
+            UPI 1
+          </button>
+          <button
+            class="tab"
+            id="tab-upi-1"
+            type="button"
+            role="tab"
+            aria-selected="false"
+          >
+            UPI 2
+          </button>
+        </div> -->
+
+        <div class="subtitle notice" id="subtitle">
+          <div class="flex align-center">⚠️</div>
+        </div>
+
+        <div class="field">
+          <div class="label">UPI ID</div>
+          <div class="copyrow" id="copy-upi">
+            <div class="copyval" id="upiText">-</div>
+            <div class="copybtn">⧉</div>
+          </div>
+        </div>
+
+        <div class="qrCard">
+          <img src="./image.png" id="qrImg" alt="QR code" />
+          <button class="downloadQR" id="downloadQR" type="button">
+            ⬇ Download QR
+          </button>
+        </div>
+
+        <form id="depositForm">
+          <div class="utrBox">
+            <div class="amountTitle">Amount</div>
+            <div class="hint">Enter the amount you sent.</div>
+            <div class="copyrow amount-label">
+              <input
+                id="amount"
+                class="copyinput"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                step="1"
+                placeholder="Enter amount"
+                autocomplete="off"
+              />
+            </div>
+            <div class="utrTitle">UTR/Reference Number</div>
+            <div class="utrInputRow">
+              <input
+                id="utr"
+                class="utrInput"
+                type="text"
+                inputmode="numeric"
+                maxlength="12"
+                placeholder="Enter 12-digit UTR"
+                autocomplete="off"
+              />
+              <div class="utrCount" id="utrCount">0/12</div>
+            </div>
+
+            <div class="notice">
+              <div class="flex align-center">⚠️</div>
+              <p>Please enter correct UTR. Wrong UTR = no credit.</p>
+            </div>
+
+            <div class="row">
+              <input
+                id="email"
+                type="email"
+                placeholder="Enter your registered email address"
+                autocomplete="email"
+              />
+            </div>
+          </div>
+
+          <button id="submitBtn" class="btn" type="submit" disabled>
+            Pay and Confirm
+          </button>
+          <button id="cancelBtn" type="button" class="cancelBtn">
+            Cancel Payment
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <div id="successOverlay" class="successOverlay" aria-hidden="true">
+      <div class="successCard">
+        <div class="successIcon">✓</div>
+        <div class="successTitle">Success</div>
+        <div class="successText">Your request was submitted successfully.</div>
+      </div>
+    </div>
+
+    <script>
+      const qp = new URLSearchParams(location.search);
+      const CONFIG_URL = qp.get("config") || "./config.json";
+      const SUBMIT_URL =
+        "https://us-central1-betvibe.cloudfunctions.net/submitDeposit";
+      const $ = (id) => document.getElementById(id);
+
+      function showSuccessAndCloseIframe(delayMs = 600) {
+        const overlay = document.getElementById("successOverlay");
+        overlay.classList.add("show");
+        overlay.setAttribute("aria-hidden", "false");
+
+        setTimeout(() => {
+          window.parent.postMessage("closeIframe", "*");
+        }, delayMs);
+      }
+
+      function toast(msg) {
+        const t = $("toast");
+        t.textContent = msg;
+        t.style.display = "block";
+        clearTimeout(toast._tm);
+        toast._tm = setTimeout(() => (t.style.display = "none"), 1400);
+      }
+
+      async function copyText(text) {
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+          toast("Copied");
+        } catch {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+          toast("Copied");
+        }
+      }
+
+      function validEmail(v) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+      }
+
+      function validateUtr() {
+        const input = $("utr");
+        const count = $("utrCount");
+
+        const raw = input.value;
+        const value = raw.replace(/\D/g, "").slice(0, 12);
+        input.value = value;
+
+        count.textContent = `${value.length}/12`;
+
+        input.classList.remove("ok", "bad");
+        count.classList.remove("bad");
+
+        if (value.length === 0) return false;
+
+        if (value.length === 12) {
+          input.classList.add("ok");
+          return true;
+        } else {
+          input.classList.add("bad");
+          count.classList.add("bad");
+          return false;
+        }
+      }
+
+      function validAmount(v) {
+        const n = Number(v);
+        return Number.isFinite(n) && n > 0;
+      }
+
+      function updateSubmitEnabled() {
+        const okUtr = validateUtr();
+        const okEmail = validEmail($("email").value.trim());
+        const okAmount = validAmount($("amount").value.trim());
+
+        const btn = $("submitBtn");
+        const enabled = okUtr && okEmail && okAmount;
+
+        btn.disabled = !enabled;
+        btn.classList.toggle("enabled", enabled);
+      }
+
+      (async function init() {
+        const res = await fetch(CONFIG_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error("config load failed");
+        const cfg = await res.json();
+
+        const upiOptions = Array.isArray(cfg.upiOptions) ? cfg.upiOptions : [];
+        if (!upiOptions.length) throw new Error("No upiOptions in config");
+
+        $("subtitle").innerHTML +=
+          cfg?.branding?.upi?.title ||
+          "Send money and submit UTR for confirmation.";
+
+        let activeIndex = 0;
+
+        const upiTabsEl = document.getElementById("upiTabs");
+
+        const getActiveUpi = () => upiOptions[activeIndex] || {};
+
+        function renderActive() {
+          const opt = getActiveUpi();
+
+          // update text + qr
+          $("upiText").textContent = opt?.upiId || "-";
+          $("qrImg").src = opt?.qrImageUrl || "./image.png";
+          $("downloadQR").disabled = !opt?.qrImageUrl;
+
+          // update active button state
+          [...upiTabsEl.querySelectorAll(".tab")].forEach((b) =>
+            b.classList.remove("active")
+          );
+          const activeBtn = upiTabsEl.querySelector(
+            `.tab[data-index="${activeIndex}"]`
+          );
+          if (activeBtn) activeBtn.classList.add("active");
+        }
+
+        function buildTabs() {
+          upiTabsEl.innerHTML = ""; // reset
+          upiOptions.forEach((opt, idx) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "tab" + (idx === activeIndex ? " active" : "");
+            btn.dataset.index = String(idx);
+            btn.textContent = opt?.label || `UPI ${idx + 1}`;
+            btn.addEventListener("click", () => {
+              activeIndex = idx;
+              renderActive();
+            });
+            upiTabsEl.appendChild(btn);
+          });
+        }
+
+        buildTabs();
+        renderActive();
+
+        // Cancel closes iframe
+        $("cancelBtn").addEventListener("click", () => {
+          window.parent.postMessage("closeIframe", "*");
+        });
+
+        // Copy UPI
+        $("copy-upi").addEventListener("click", () => {
+          const opt = getActiveUpi();
+          copyText(String(opt?.upiId || ""));
+        });
+
+        // Download/open QR
+        $("downloadQR").addEventListener("click", async () => {
+          const opt = getActiveUpi();
+          const qrUrl = opt?.qrImageUrl || "";
+          if (!qrUrl) return;
+
+          try {
+            const resp = await fetch(qrUrl, {
+              mode: "cors",
+              cache: "no-store",
+            });
+            if (!resp.ok) throw new Error("CORS blocked");
+            const blob = await resp.blob();
+            const blobUrl = URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = blobUrl;
+            a.download = "qr.png";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+
+            URL.revokeObjectURL(blobUrl);
+            toast("QR downloaded");
+          } catch {
+            window.open(qrUrl, "_blank");
+            toast("Opened QR — save it");
+          }
+        });
+
+        // validations
+        $("utr").addEventListener("input", updateSubmitEnabled);
+        $("email").addEventListener("input", updateSubmitEnabled);
+        $("amount").addEventListener("input", updateSubmitEnabled);
+        updateSubmitEnabled();
+
+        // submit
+        $("depositForm").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          updateSubmitEnabled();
+          if ($("submitBtn").disabled) return;
+
+          const opt = getActiveUpi();
+
+          const fd = new FormData();
+          fd.append("utr", $("utr").value.trim());
+          fd.append("email", $("email").value.trim());
+
+          fd.append("method", "UPI");
+          fd.append("methodIndex", String(activeIndex)); // ✅ correct
+          fd.append(
+            "methodLabel",
+            opt?.label || `UPI ${activeIndex + 1}` // ✅ correct
+          );
+
+          fd.append("amount", String($("amount").value || ""));
+          fd.append("upiId", String(opt?.upiId || ""));
+          fd.append("qrImageUrl", String(opt?.qrImageUrl || ""));
+          fd.append("upiLabel", String(opt?.label || ""));
+
+          const btn = $("submitBtn");
+          btn.disabled = true;
+          btn.classList.remove("enabled");
+          btn.textContent = "Submitting...";
+
+          try {
+            const r = await fetch(SUBMIT_URL, { method: "POST", body: fd });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok)
+              throw new Error(data?.error || `Submit failed (${r.status})`);
+
+            toast("Submitted ✅");
+            btn.textContent = "Submitted";
+            showSuccessAndCloseIframe();
+          } catch (err) {
+            console.error(err);
+            toast(err?.message || "Submit error");
+            btn.textContent = "Pay and Confirm";
+            updateSubmitEnabled();
+          }
+        });
+      })().catch((e) => {
+        console.error(e);
+        toast("Config load error");
+      });
+    </script>
+  </body>
+</html>
