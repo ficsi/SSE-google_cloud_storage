@@ -81,3 +81,8 @@ tbody tr {
   line-height: 0;
   margin-left: 20px;
 }
+.info-box-icon{
+  cursor: pointer;
+  position: relative;
+}
+

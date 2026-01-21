@@ -1,61 +1,424 @@
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  lazy,
-  Suspense,
-} from "react";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  where,
+  Timestamp,
+} from "firebase/firestore";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 
+import NotesPanel from "./NotesPanel";
 import { db, app } from "./firebase";
 import "./index.css";
 import "./App.css";
-
 import { exportDepositsCSV } from "./csv";
+import Ledger from "./Ledger";
 
 const ConfigEditor = lazy(() => import("./ConfigEditor"));
 
 export default function Admin() {
+  const navigate = useNavigate();
+  const [balances, setBalances] = useState({ upi: 0, imps: 0, total: 0 });
+  const [balancesErr, setBalancesErr] = useState("");
+
+  // data
   const [allDeposits, setAllDeposits] = useState([]);
   const [deposits, setDeposits] = useState([]);
+
+  // filters
   const [searchTerm, setSearchTerm] = useState("");
+  const [dateFrom, setDateFrom] = useState(""); // YYYY-MM-DD
+  const [dateTo, setDateTo] = useState(""); // YYYY-MM-DD
 
-  // ✅ selected rows (UTR Set)
+  // ui state
   const [activeRows, setActiveRows] = useState(new Set());
-
-  // ✅ Status dropdown
   const [openMenuFor, setOpenMenuFor] = useState(null); // UTR
   const [menuPos, setMenuPos] = useState(null); // { top, left, width }
-
-  // ✅ Config modal
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [notesForUtr, setNotesForUtr] = useState(null);
 
-  // keep ref for click-outside area (optional)
-  const menuRootRef = useRef(null);
+  // auth gating
+  const [authReady, setAuthReady] = useState(false);
+  const [user, setUser] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [permissionError, setPermissionError] = useState("");
 
   // Firebase callable
   const functions = useMemo(() => getFunctions(app, "us-central1"), []);
   const updateDepositStatus = useMemo(
     () => httpsCallable(functions, "updateDepositStatus"),
-    [functions]
+    [functions],
   );
 
-  // Debug current user
+  // -----------------------
+  // Helpers
+  // -----------------------
+  const getBalances = useMemo(
+    () => httpsCallable(functions, "getBalances"),
+    [functions],
+  );
+
+  const statusLabel = (s) => String(s || "PENDING").toUpperCase();
+
+  const statusBadgeClass = (s) => {
+    switch (statusLabel(s)) {
+      case "MISMATCH":
+        return "badge bg-pink";
+      case "TEST":
+        return "badge bg-black";
+      case "RECEIVED":
+        return "badge bg-success";
+      case "NOT_RECEIVED":
+        return "badge bg-danger";
+      case "REFUNDED":
+        return "badge bg-info";
+      default:
+        return "badge bg-warning";
+    }
+  };
+
+  const allowedTransitions = useMemo(
+    () => ({
+      PENDING: ["RECEIVED", "NOT_RECEIVED", "MISMATCH", "TEST"],
+      TEST: ["RECEIVED", "NOT_RECEIVED", "MISMATCH"],
+      MISMATCH: ["RECEIVED", "NOT_RECEIVED"],
+      RECEIVED: ["REFUNDED", "NOT_RECEIVED", "MISMATCH"],
+      NOT_RECEIVED: ["RECEIVED", "MISMATCH"],
+      REFUNDED: [],
+    }),
+    [],
+  );
+
+  const optionsFor = (currentStatus) =>
+    allowedTransitions[statusLabel(currentStatus)] || [];
+
+  const createdAtMs = (d) => {
+    const t = d?.createdAt;
+    if (!t) return 0;
+    if (typeof t.toMillis === "function") return t.toMillis();
+    if (typeof t === "number") return t;
+    return 0;
+  };
+
+  const paymentMethodText = (d) => {
+    if (d?.methodLabel) return d.methodLabel;
+
+    const type = String(d?.paymentMethod || "").toUpperCase();
+    const idx = Number(d?.methodIndex);
+    const n = Number.isFinite(idx) ? idx + 1 : null;
+
+    if (type === "UPI") return n ? `UPI ${n}` : "UPI";
+    if (type === "BANK") return n ? `Bank ${n}` : "Bank Transfer";
+    return "";
+  };
+
+  function applyFilter(rows, term, fromStr, toStr) {
+    const t = String(term || "")
+      .trim()
+      .toLowerCase();
+
+    const fromMs = fromStr ? new Date(`${fromStr}T00:00:00`).getTime() : null;
+    const toMs = toStr ? new Date(`${toStr}T23:59:59.999`).getTime() : null;
+
+    return rows.filter((d) => {
+      const utr = String(d.utr || "");
+      const email = String(d.email || "").toLowerCase();
+      const username = String(d.username || "").toLowerCase();
+      const first = String(d.firstName || "").toLowerCase();
+      const last = String(d.lastName || "").toLowerCase();
+
+      const matchesText =
+        !t ||
+        utr.toLowerCase().includes(t) ||
+        email.includes(t) ||
+        username.includes(t) ||
+        first.includes(t) ||
+        last.includes(t);
+
+      if (!matchesText) return false;
+
+      const ms = createdAtMs(d);
+      if (!ms) return false;
+
+      if (fromMs !== null && ms < fromMs) return false;
+      if (toMs !== null && ms > toMs) return false;
+
+      return true;
+    });
+  }
+
+  // -----------------------
+  // NEW highlight + favicon + sound
+  // -----------------------
+  const NEW_WINDOW_MS = 2 * 60 * 1000;
+  const isNew = (d) => {
+    const ms = createdAtMs(d);
+    if (!ms) return false;
+    if (statusLabel(d.status) !== "PENDING") return false;
+    return Date.now() - ms <= NEW_WINDOW_MS;
+  };
+
+  const faviconIntervalRef = useRef(null);
+  const faviconOnRef = useRef(false);
+
+  const notifyAudioRef = useRef(null);
+  const notifyTimerRef = useRef(null);
+  const notifyActiveRef = useRef(false);
+
+  const NOTIFY_AUDIO_SRC = "/notify.mp3";
+  const NOTIFY_MS = 3_000;
+
+  function setFavicon(href) {
+    let link =
+      document.querySelector("link[rel='icon']") ||
+      document.querySelector("link[rel='shortcut icon']");
+
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = `${href}?v=${Date.now()}`;
+  }
+
+  function startFaviconBlink() {
+    if (faviconIntervalRef.current) return;
+    faviconOnRef.current = false;
+
+    faviconIntervalRef.current = setInterval(() => {
+      faviconOnRef.current = !faviconOnRef.current;
+      setFavicon(faviconOnRef.current ? "/favicon-green.ico" : "/favicon.ico");
+    }, 800);
+  }
+
+  function stopFaviconBlink() {
+    if (faviconIntervalRef.current) {
+      clearInterval(faviconIntervalRef.current);
+      faviconIntervalRef.current = null;
+    }
+    faviconOnRef.current = false;
+    setFavicon("/favicon.ico");
+  }
+
+  function startNotifySound() {
+    if (notifyActiveRef.current) return;
+    notifyActiveRef.current = true;
+
+    if (!notifyAudioRef.current) {
+      const a = new Audio(NOTIFY_AUDIO_SRC);
+      a.preload = "auto";
+      a.loop = true;
+      a.volume = 1.0;
+      notifyAudioRef.current = a;
+    }
+
+    const a = notifyAudioRef.current;
+    try {
+      a.currentTime = 0;
+      a.play().catch(() => {});
+    } catch {}
+
+    clearTimeout(notifyTimerRef.current);
+    notifyTimerRef.current = setTimeout(() => stopNotifySound(), NOTIFY_MS);
+  }
+
+  function stopNotifySound() {
+    notifyActiveRef.current = false;
+
+    clearTimeout(notifyTimerRef.current);
+    notifyTimerRef.current = null;
+
+    const a = notifyAudioRef.current;
+    if (a) {
+      try {
+        a.pause();
+        a.currentTime = 0;
+      } catch {}
+    }
+  }
+  const toAmount = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const totals = useMemo(() => {
+    let upi = 0,
+      bank = 0,
+      pending = 0,
+      mismatch = 0,
+      refunded = 0;
+
+    for (const d of allDeposits) {
+      const status = statusLabel(d.status);
+      const method = String(d.paymentMethod || "").toUpperCase();
+      const amt = toAmount(d.amount);
+
+      if (amt <= 0) continue;
+
+      if (status === "RECEIVED") {
+        if (method === "UPI") upi += amt;
+        else if (method === "BANK") bank += amt;
+      } else if (status === "PENDING") pending += amt;
+      else if (status === "MISMATCH") mismatch += amt;
+      else if (status === "REFUNDED") refunded += amt;
+    }
+
+    return {
+      upi,
+      bank,
+      total: upi + bank,
+      pending,
+      mismatch,
+      refunded,
+    };
+  }, [allDeposits, statusLabel]);
+
+  // -----------------------
+  // Auth + Admin claim check (IMPORTANT)
+  // -----------------------
+
+  useEffect(() => {
+    if (!authReady) return;
+    if (!user) return;
+
+    let alive = true;
+
+    async function load() {
+      try {
+        const res = await getBalances();
+        if (!alive) return;
+        setBalancesErr("");
+        setBalances(res.data?.balances || { upi: 0, imps: 0, total: 0 });
+      } catch (e) {
+        console.error("getBalances error:", e);
+        setBalancesErr(e?.message || "Failed to load balances");
+      }
+    }
+
+    load();
+    const t = setInterval(load, 10_000); // refresh every 10s (optional)
+
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [authReady, user, getBalances]);
+
   useEffect(() => {
     const auth = getAuth();
-    // console.log("Current user:", auth.currentUser);
+
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      setUser(u || null);
+      setAuthReady(true);
+      setPermissionError("");
+
+      if (!u) {
+        setIsAdmin(false);
+        return;
+      }
+
+      // Force refresh so custom claims are present immediately
+      try {
+        await u.getIdToken(true);
+        const token = await u.getIdTokenResult();
+        setIsAdmin(token?.claims?.admin === true);
+      } catch (e) {
+        console.error("Token refresh error:", e);
+        setIsAdmin(false);
+      }
+    });
+
+    return () => unsub();
+  }, []);
+
+  // -----------------------
+  // Firestore listener (ONLY when admin)
+  // -----------------------
+  useEffect(() => {
+    if (!authReady) return;
+
+    if (!user) {
+      setAllDeposits([]);
+      setPermissionError("You are not logged in.");
+      return;
+    }
+
+    if (!isAdmin) {
+      setAllDeposits([]);
+      setPermissionError("You are logged in, but you are not an admin.");
+      return;
+    }
+
+    setPermissionError("");
+
+    const start = dateFrom
+      ? Timestamp.fromDate(new Date(`${dateFrom}T00:00:00`))
+      : null;
+    const end = dateTo
+      ? Timestamp.fromDate(new Date(`${dateTo}T23:59:59.999`))
+      : null;
+
+    // IMPORTANT:
+    // since we range filter by createdAt, we MUST orderBy createdAt
+    let q = query(collection(db, "deposits"), orderBy("createdAt", "desc"));
+
+    if (start) q = query(q, where("createdAt", ">=", start));
+    if (end) q = query(q, where("createdAt", "<=", end));
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const rows = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setAllDeposits(rows);
+      },
+      (err) => {
+        console.error("onSnapshot error:", err);
+        setPermissionError(err?.message || "Failed to load deposits.");
+      },
+    );
+
+    return () => unsub();
+  }, [authReady, user, isAdmin, dateFrom, dateTo]);
+
+  // Apply filters
+  useEffect(() => {
+    setDeposits(applyFilter(allDeposits, searchTerm, "", ""));
+  }, [allDeposits, searchTerm, dateFrom, dateTo]);
+
+  // NEW pending notifications
+  useEffect(() => {
+    const hasNewPending = deposits.some(
+      (d) => statusLabel(d.status) === "PENDING" && isNew(d),
+    );
+
+    if (hasNewPending) {
+      startFaviconBlink();
+      startNotifySound();
+    } else {
+      stopFaviconBlink();
+      stopNotifySound();
+    }
+  }, [deposits]);
+
+  // stop on focus
+  useEffect(() => {
+    const onFocus = () => {
+      stopFaviconBlink();
+      stopNotifySound();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, []);
 
   // Close status menu on outside click
   useEffect(() => {
-    const onDocClick = (e) => {
+    const onDocClick = () => {
       if (!openMenuFor) return;
-      // if click is inside the table body we still want to close,
-      // but portal menu will stopPropagation itself
       setOpenMenuFor(null);
     };
     document.addEventListener("click", onDocClick);
@@ -64,55 +427,28 @@ export default function Admin() {
 
   // Prevent scroll when modal open
   useEffect(() => {
-    if (!showConfigModal) return;
+    if (!showConfigModal && !notesForUtr) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [showConfigModal]);
+  }, [showConfigModal, notesForUtr]);
 
-  // ESC closes modal
+  // ESC closes modals
   useEffect(() => {
-    if (!showConfigModal) return;
     const onKey = (e) => {
-      if (e.key === "Escape") setShowConfigModal(false);
+      if (e.key !== "Escape") return;
+      setShowConfigModal(false);
+      setNotesForUtr(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showConfigModal]);
+  }, []);
 
   // -----------------------
-  // Status helpers
+  // Actions
   // -----------------------
-  const statusLabel = (s) => String(s || "PENDING").toUpperCase();
-
-  const statusBadgeClass = (s) => {
-    switch (statusLabel(s)) {
-      case "RECEIVED":
-        return "badge bg-success";
-      case "NOT_RECEIVED":
-        return "badge bg-danger";
-      case "REFUNDED":
-        return "badge bg-info";
-      default:
-        return "badge bg-warning"; // PENDING
-    }
-  };
-
-  const allowedTransitions = useMemo(
-    () => ({
-      PENDING: ["RECEIVED", "NOT_RECEIVED"],
-      RECEIVED: ["REFUNDED"],
-      NOT_RECEIVED: [],
-      REFUNDED: [],
-    }),
-    []
-  );
-
-  const optionsFor = (currentStatus) =>
-    allowedTransitions[statusLabel(currentStatus)] || [];
-
   const doStatusUpdate = async (utr, nextStatus) => {
     if (!utr) return;
     const ok = window.confirm(`Change status → ${nextStatus}? (UTR: ${utr})`);
@@ -127,83 +463,6 @@ export default function Admin() {
     }
   };
 
-  // -----------------------
-  // Payment method label
-  // -----------------------
-  const paymentMethodText = (d) => {
-  // preferred
-  if (d?.methodLabel) return d.methodLabel;
-
-  // fallback
-  const type = String(d?.paymentMethod || "").toUpperCase();
-  const idx = Number(d?.methodIndex);
-  const n = Number.isFinite(idx) ? idx + 1 : null;
-
-  if (type === "UPI") return n ? `UPI ${n}` : "UPI";
-  if (type === "BANK") return n ? `Bank ${n}` : "Bank Transfer";
-  return "";
-};
-
-
-  // -----------------------
-  // "NEW" highlight logic
-  // -----------------------
-  const NEW_WINDOW_MS = 2 * 60 * 1000; // 2 minutes
-  const SEEN_KEY = "betvibe_admin_last_seen_ms";
-
-  useEffect(() => {
-    // mark as seen when admin opens
-    localStorage.setItem(SEEN_KEY, String(Date.now()));
-  }, []);
-
-  const createdAtMs = (d) => {
-    const t = d?.createdAt;
-    if (!t) return 0;
-    if (typeof t.toMillis === "function") return t.toMillis();
-    if (typeof t === "number") return t;
-    return 0;
-  };
-
-  const isNew = (d) => {
-    const ms = createdAtMs(d);
-    if (!ms) return false;
-    if (statusLabel(d.status) !== "PENDING") return false;
-    return Date.now() - ms <= NEW_WINDOW_MS;
-  };
-
-  // -----------------------
-  // Search filter
-  // -----------------------
-  const matchesSearch = (d, term) => {
-    if (!term) return true;
-
-    const t = term.toLowerCase();
-    const utr = String(d.utr || "");
-    const email = String(d.email || "").toLowerCase();
-    const username = String(d.username || "").toLowerCase();
-    const first = String(d.firstName || "").toLowerCase();
-    const last = String(d.lastName || "").toLowerCase();
-
-    return (
-      utr.includes(term) ||
-      email.includes(t) ||
-      username.includes(t) ||
-      first.includes(t) ||
-      last.includes(t)
-    );
-  };
-
-  const applyFilter = (rows, term) => rows.filter((d) => matchesSearch(d, term));
-
-  const handleSearchTermFilter = (e) => {
-    const term = e.target.value;
-    setSearchTerm(term);
-    setDeposits(applyFilter(allDeposits, term));
-  };
-
-  // -----------------------
-  // Row selection
-  // -----------------------
   const toggleRowSelection = (utr) => {
     if (!utr) return;
     setActiveRows((prev) => {
@@ -213,32 +472,50 @@ export default function Admin() {
     });
   };
 
-  // -----------------------
-  // Live Firestore listener
-  // -----------------------
-  useEffect(() => {
-    const q = query(collection(db, "deposits"), orderBy("createdAt", "desc"));
+  const clearDates = () => {
+    setDateFrom("");
+    setDateTo("");
+  };
 
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const rows = snap.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+  const periodTotals = useMemo(() => {
+    const sum = {
+      receivedUpi: 0,
+      receivedImps: 0,
+      receivedTotal: 0,
+      pendingUpi: 0,
+      pendingImps: 0,
+      pendingTotal: 0,
+    };
 
-        setAllDeposits(rows);
-        setDeposits(applyFilter(rows, searchTerm));
-      },
-      (err) => {
-        console.error("onSnapshot error:", err);
+    for (const d of deposits) {
+      const amount = Number(d.amount) || 0;
+      if (amount <= 0) continue;
+
+      const status = String(d.status || "PENDING").toUpperCase();
+      const method = String(d.paymentMethod || "").toUpperCase(); // UPI or BANK
+
+      const isUpi = method === "UPI";
+      const isImps = method === "BANK"; // you map BANK -> IMPS bucket
+
+      if (status === "RECEIVED") {
+        if (isUpi) sum.receivedUpi += amount;
+        if (isImps) sum.receivedImps += amount;
+        sum.receivedTotal += amount;
       }
-    );
 
-    return () => unsub();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm]);
+      if (status === "PENDING") {
+        if (isUpi) sum.pendingUpi += amount;
+        if (isImps) sum.pendingImps += amount;
+        sum.pendingTotal += amount;
+      }
+    }
 
+    return sum;
+  }, [deposits]);
+
+  // -----------------------
+  // UI
+  // -----------------------
   return (
     <div style={{ padding: 20 }}>
       {/* Header */}
@@ -255,20 +532,78 @@ export default function Admin() {
         <div>
           <h2 style={{ margin: 0 }}>Deposits (Live)</h2>
           <div style={{ color: "#6b7280", fontSize: 13, marginTop: 4 }}>
-            Status updates • CSV export • Config editor
+            Status updates • CSV export • Config editor • Notes
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button
-            type="button"
-            className="btn btn-primary"
-            style={{ borderRadius: 10 }}
-            onClick={() => setShowConfigModal(true)}
-          >
-            <i className="fas fa-cog" style={{ marginRight: 8 }} />
-            Edit Config
-          </button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}></div>
+      </div>
+
+      {/* Permission banner */}
+      {permissionError ? (
+        <div className="alert alert-danger" style={{ marginBottom: 12 }}>
+          <b>Firestore:</b> {permissionError}
+          <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>
+            If this is wrong, verify: (1) same Firebase projectId, (2) admin
+            claim on this uid, (3) rules allow deposits + notes subcollection.
+          </div>
+        </div>
+      ) : null}
+      <div className="row" style={{ marginBottom: 12 }}>
+        <div className="col-md-3 col-sm-6 col-12">
+          <div className="info-box">
+            <span className="info-box-icon bg-success">
+              <i className="fas fa-wallet" />
+            </span>
+            <div className="info-box-content">
+              <span className="info-box-text">UPI Received</span>
+              <span className="info-box-number">
+                {periodTotals.receivedUpi.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-md-3 col-sm-6 col-12">
+          <div className="info-box">
+            <span className="info-box-icon bg-primary">
+              <i className="fas fa-university" />
+            </span>
+            <div className="info-box-content">
+              <span className="info-box-text">Bank Received</span>
+              <span className="info-box-number">
+                {periodTotals.receivedImps.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-md-3 col-sm-6 col-12">
+          <div className="info-box">
+            <span className="info-box-icon bg-info">
+              <i className="fas fa-coins" />
+            </span>
+            <div className="info-box-content">
+              <span className="info-box-text">Total Received</span>
+              <span className="info-box-number">
+                {periodTotals.receivedTotal.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-md-3 col-sm-6 col-12">
+          <div className="info-box">
+            <span className="info-box-icon bg-warning">
+              <i className="fas fa-clock" />
+            </span>
+            <div className="info-box-content">
+              <span className="info-box-text">Pending</span>
+              <span className="info-box-number">
+                {periodTotals.pendingTotal.toLocaleString()}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -289,8 +624,9 @@ export default function Admin() {
               Records
             </h3>
 
-            {/* ✅ Export controls (restored) */}
-            <div style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
+            <div
+              style={{ display: "inline-flex", gap: 10, alignItems: "center" }}
+            >
               <button
                 type="button"
                 className="btn btn-sm btn-outline-primary"
@@ -341,7 +677,7 @@ export default function Admin() {
             <div className="input-group input-group-sm" style={{ width: 260 }}>
               <input
                 value={searchTerm}
-                onChange={handleSearchTermFilter}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 type="text"
                 className="form-control float-right"
                 placeholder="Search (UTR / email / user)"
@@ -353,9 +689,55 @@ export default function Admin() {
               </div>
             </div>
           </div>
+
+          {/* Date range */}
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <div className="input-group input-group-sm" style={{ width: 185 }}>
+              <div className="input-group-prepend">
+                <span className="input-group-text">From</span>
+              </div>
+              <input
+                type="date"
+                className="form-control"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+            </div>
+
+            <div className="input-group input-group-sm" style={{ width: 185 }}>
+              <div className="input-group-prepend">
+                <span className="input-group-text">To</span>
+              </div>
+              <input
+                type="date"
+                className="form-control"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-sm btn-default"
+              disabled={!dateFrom && !dateTo}
+              onClick={clearDates}
+            >
+              Clear dates
+            </button>
+          </div>
         </div>
 
-        <div className="card-body table-responsive p-0" style={{ height: "80vh" }}>
+        <div
+          className="card-body table-responsive p-0"
+          style={{ height: "80vh" }}
+        >
           <table className="table table-head-fixed text-nowrap">
             <thead>
               <tr>
@@ -363,14 +745,14 @@ export default function Admin() {
                 <th>Date</th>
                 <th>Amount</th>
                 <th>UTR</th>
-                <th>User</th>
                 <th>Email</th>
                 <th>Payment Method</th>
                 <th>Status</th>
+                <th>Notes</th>
               </tr>
             </thead>
 
-            <tbody ref={menuRootRef}>
+            <tbody>
               {deposits.map((d, index) => {
                 const currentStatus = statusLabel(d.status);
                 const opts = optionsFor(currentStatus);
@@ -389,7 +771,6 @@ export default function Admin() {
                       transition: "background 200ms ease",
                     }}
                   >
-                    {/* ✅ Click selection on row number (as you had) */}
                     <td
                       className="row-num"
                       onClick={(e) => {
@@ -406,9 +787,14 @@ export default function Admin() {
                     <td>{d.amount ?? ""}</td>
 
                     <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         <span style={{ fontWeight: 700 }}>{d.utr ?? ""}</span>
-
                         {isNew(d) && (
                           <span
                             style={{
@@ -427,13 +813,16 @@ export default function Admin() {
                       </div>
                     </td>
 
-                    <td>{d.username ?? ""}</td>
                     <td>{d.email ?? ""}</td>
                     <td>{paymentMethodText(d)}</td>
 
-                    {/* Status badge + portal menu */}
                     <td style={{ position: "relative" }}>
-                      <div style={{ display: "inline-block", position: "relative" }}>
+                      <div
+                        style={{
+                          display: "inline-block",
+                          position: "relative",
+                        }}
+                      >
                         <button
                           type="button"
                           className={statusBadgeClass(currentStatus)}
@@ -450,8 +839,10 @@ export default function Admin() {
                             e.stopPropagation();
                             if (!opts.length) return;
 
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const nextOpen = openMenuFor === d.utr ? null : d.utr;
+                            const rect =
+                              e.currentTarget.getBoundingClientRect();
+                            const nextOpen =
+                              openMenuFor === d.utr ? null : d.utr;
                             setOpenMenuFor(nextOpen);
 
                             if (nextOpen) {
@@ -462,101 +853,154 @@ export default function Admin() {
                               });
                             }
                           }}
-                          title={opts.length ? "Change status" : "Status locked"}
+                          title={
+                            opts.length ? "Change status" : "Status locked"
+                          }
                         >
                           {currentStatus}
-                          {opts.length ? <span style={{ opacity: 0.8 }}>▾</span> : null}
+                          {opts.length ? (
+                            <span style={{ opacity: 0.8 }}>▾</span>
+                          ) : null}
                         </button>
 
-                        {openMenuFor &&
-                          menuPos &&
-                          createPortal(
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              style={{
-                                position: "fixed",
-                                top: menuPos.top,
-                                left: menuPos.left,
-                                minWidth: menuPos.width,
-                                background: "#fff",
-                                border: "1px solid rgba(0,0,0,.12)",
-                                borderRadius: 12,
-                                boxShadow: "0 14px 40px rgba(0,0,0,.18)",
-                                padding: "6px 0",
-                                zIndex: 999999,
-                              }}
-                            >
-                              {(optionsFor(
-                                deposits.find((x) => x.utr === openMenuFor)?.status
-                              ) || []).map((next) => (
+                        {openMenuFor && menuPos
+                          ? createPortal(
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  position: "fixed",
+                                  top: menuPos.top,
+                                  left: menuPos.left,
+                                  minWidth: menuPos.width,
+                                  background: "#fff",
+                                  border: "1px solid rgba(0,0,0,.12)",
+                                  borderRadius: 12,
+                                  padding: "6px 0",
+                                  zIndex: 999999,
+                                }}
+                              >
+                                {(
+                                  optionsFor(
+                                    deposits.find((x) => x.utr === openMenuFor)
+                                      ?.status,
+                                  ) || []
+                                ).map((next) => (
+                                  <div
+                                    key={next}
+                                    role="button"
+                                    onClick={() =>
+                                      doStatusUpdate(openMenuFor, next)
+                                    }
+                                    style={{
+                                      padding: "10px 14px",
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 10,
+                                      fontSize: 14,
+                                      fontWeight: 600,
+                                      color: "#111827",
+                                    }}
+                                    onMouseEnter={(e) =>
+                                      (e.currentTarget.style.background =
+                                        "#f3f4f6")
+                                    }
+                                    onMouseLeave={(e) =>
+                                      (e.currentTarget.style.background =
+                                        "transparent")
+                                    }
+                                  >
+                                    <span
+                                      style={{
+                                        width: 10,
+                                        height: 10,
+                                        borderRadius: "50%",
+                                        background:
+                                          next === "RECEIVED"
+                                            ? "#16a34a"
+                                            : next === "NOT_RECEIVED"
+                                              ? "#ef4444"
+                                              : next === "MISMATCH"
+                                                ? "#f59e0b"
+                                                : "#0ea5e9",
+                                      }}
+                                    />
+                                    <span>{next.replaceAll("_", " ")}</span>
+                                  </div>
+                                ))}
+
                                 <div
-                                  key={next}
+                                  style={{
+                                    height: 1,
+                                    background: "#e5e7eb",
+                                    margin: "6px 0",
+                                  }}
+                                />
+
+                                <div
                                   role="button"
-                                  onClick={() => doStatusUpdate(openMenuFor, next)}
+                                  onClick={() => setOpenMenuFor(null)}
                                   style={{
                                     padding: "10px 14px",
                                     cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 10,
-                                    fontSize: 14,
-                                    fontWeight: 600,
-                                    color: "#111827",
+                                    fontSize: 13,
+                                    color: "#6b7280",
                                   }}
                                   onMouseEnter={(e) =>
-                                    (e.currentTarget.style.background = "#f3f4f6")
+                                    (e.currentTarget.style.background =
+                                      "#f9fafb")
                                   }
                                   onMouseLeave={(e) =>
-                                    (e.currentTarget.style.background = "transparent")
+                                    (e.currentTarget.style.background =
+                                      "transparent")
                                   }
                                 >
-                                  <span
-                                    style={{
-                                      width: 10,
-                                      height: 10,
-                                      borderRadius: "50%",
-                                      background:
-                                        next === "RECEIVED"
-                                          ? "#16a34a"
-                                          : next === "NOT_RECEIVED"
-                                          ? "#ef4444"
-                                          : "#0ea5e9",
-                                    }}
-                                  />
-                                  <span>{next.replaceAll("_", " ")}</span>
+                                  Cancel
                                 </div>
-                              ))}
-
-                              <div
-                                style={{
-                                  height: 1,
-                                  background: "#e5e7eb",
-                                  margin: "6px 0",
-                                }}
-                              />
-
-                              <div
-                                role="button"
-                                onClick={() => setOpenMenuFor(null)}
-                                style={{
-                                  padding: "10px 14px",
-                                  cursor: "pointer",
-                                  fontSize: 13,
-                                  color: "#6b7280",
-                                }}
-                                onMouseEnter={(e) =>
-                                  (e.currentTarget.style.background = "#f9fafb")
-                                }
-                                onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background = "transparent")
-                                }
-                              >
-                                Cancel
-                              </div>
-                            </div>,
-                            document.body
-                          )}
+                              </div>,
+                              document.body,
+                            )
+                          : null}
                       </div>
+                    </td>
+
+                    <td>
+                      <span
+                        className="info-box-icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowConfigModal(false);
+                          setNotesForUtr(d.utr);
+                        }}
+                        style={{ cursor: "pointer" }}
+                        title="Notes"
+                      >
+                        <i className="fas fa-comments"></i>
+                        {!!d.notesCount && (
+                          <span
+                            className="test"
+                            style={{
+                              position: "absolute",
+                              top: -4,
+                              right: -16,
+                              minWidth: 18,
+                              height: 18,
+                              borderRadius: 999,
+                              padding: "0 6px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 11,
+                              fontWeight: 800,
+                              background: "#ef4444",
+                              color: "#fff",
+                              border: "2px solid #fff",
+                            }}
+                          >
+                            {d.notesCount > 0 ? d.notesCount : ""}
+                          </span>
+                        )}
+                      </span>
                     </td>
                   </tr>
                 );
@@ -574,7 +1018,7 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* ✅ AdminLTE-style Config modal */}
+      {/* Config modal */}
       {showConfigModal && (
         <div
           style={{
@@ -626,10 +1070,7 @@ export default function Admin() {
 
             <div
               className="card-body"
-              style={{
-                overflow: "auto",
-                maxHeight: "calc(85vh - 110px)",
-              }}
+              style={{ overflow: "auto", maxHeight: "calc(85vh - 110px)" }}
             >
               <Suspense
                 fallback={
@@ -642,11 +1083,7 @@ export default function Admin() {
 
             <div
               className="card-footer"
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 10,
-              }}
+              style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}
             >
               <button
                 type="button"
@@ -655,6 +1092,48 @@ export default function Admin() {
                 onClick={() => setShowConfigModal(false)}
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notes modal */}
+      {notesForUtr && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,.55)",
+            zIndex: 999999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setNotesForUtr(null)}
+        >
+          <div
+            style={{
+              width: "min(900px, 100%)",
+              maxHeight: "85vh",
+              overflow: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <NotesPanel utr={notesForUtr} />
+            <div
+              style={{
+                marginTop: 10,
+                display: "flex",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                className="btn btn-default"
+                onClick={() => setNotesForUtr(null)}
+              >
+                Close
               </button>
             </div>
           </div>
