@@ -121,15 +121,6 @@
         align-items: center;
         font-size: 12px;
       }
-      .flex {
-        display: flex;
-      }
-      .align-center {
-        align-items: center;
-      }
-      .notice .align-center {
-        padding-bottom: 2px;
-      }
       .subtitle {
         text-align: left;
         color: #92400e;
@@ -321,7 +312,6 @@
   <body data-method="BANK">
     <div class="wrap">
       <div class="phone">
-        <!-- ✅ Dynamic bank tabs will be injected here -->
         <div
           class="tabs"
           id="bankTabs"
@@ -436,13 +426,14 @@
       const CONFIG_URL = qp.get("config") || "./config.json";
       const SUBMIT_URL =
         "https://us-central1-betvibe.cloudfunctions.net/submitDeposit";
+
       const $ = (id) => document.getElementById(id);
 
       let bankOptions = [];
       let activeBankIndex = 0;
 
       function showSuccessAndCloseIframe(delayMs = 600) {
-        const overlay = document.getElementById("successOverlay");
+        const overlay = $("successOverlay");
         overlay.classList.add("show");
         overlay.setAttribute("aria-hidden", "false");
 
@@ -520,6 +511,10 @@
         btn.classList.toggle("enabled", enabled);
       }
 
+      function getActiveBank() {
+        return bankOptions[activeBankIndex] || {};
+      }
+
       function applyBankOption(opt) {
         $("bankNameText").textContent = opt?.bankName || "-";
         $("accountNumberText").textContent = opt?.accountNumber || "-";
@@ -538,9 +533,16 @@
           b.textContent = opt?.label || `BANK ${idx + 1}`;
           b.addEventListener("click", () => {
             activeBankIndex = idx;
-            renderBankTabs();
-            applyBankOption(bankOptions[activeBankIndex]);
+
+            // re-render active state
+            [...tabs.querySelectorAll(".tab")].forEach((x) =>
+              x.classList.remove("active")
+            );
+            b.classList.add("active");
+
+            applyBankOption(getActiveBank());
           });
+
           tabs.appendChild(b);
         });
       }
@@ -554,32 +556,39 @@
           window.parent.postMessage("closeIframe", "*");
         });
 
+        // Branding (HTML allowed)
         $("subtitle").innerHTML =
           cfg?.branding?.bank?.title ||
           "Send money and submit UTR for confirmation.";
 
         // ✅ bankOptions preferred, fallback to cfg.bank
-        bankOptions =
-          Array.isArray(cfg?.bankOptions) && cfg.bankOptions.length
-            ? cfg.bankOptions
-            : [cfg?.bank || {}];
+        const fromOptions = Array.isArray(cfg?.bankOptions)
+          ? cfg.bankOptions
+          : [];
+        if (fromOptions.length) {
+          bankOptions = fromOptions;
+        } else if (cfg?.bank && typeof cfg.bank === "object") {
+          bankOptions = [cfg.bank];
+        } else {
+          bankOptions = [{}];
+        }
 
         activeBankIndex = 0;
         renderBankTabs();
-        applyBankOption(bankOptions[activeBankIndex]);
+        applyBankOption(getActiveBank());
 
-        // Copy handlers (always copy current active option)
+        // Copy handlers - always copy current active bank
         $("copy-bankName").addEventListener("click", () =>
-          copyText(String(bankOptions[activeBankIndex]?.bankName || ""))
+          copyText(String(getActiveBank().bankName || ""))
         );
         $("copy-accountNumber").addEventListener("click", () =>
-          copyText(String(bankOptions[activeBankIndex]?.accountNumber || ""))
+          copyText(String(getActiveBank().accountNumber || ""))
         );
         $("copy-ifsc").addEventListener("click", () =>
-          copyText(String(bankOptions[activeBankIndex]?.ifsc || ""))
+          copyText(String(getActiveBank().ifsc || ""))
         );
         $("copy-accountHolder").addEventListener("click", () =>
-          copyText(String(bankOptions[activeBankIndex]?.accountHolder || ""))
+          copyText(String(getActiveBank().accountHolder || ""))
         );
 
         $("utr").addEventListener("input", updateSubmitEnabled);
@@ -591,25 +600,21 @@
           updateSubmitEnabled();
           if ($("submitBtn").disabled) return;
 
-          const opt = bankOptions[activeBankIndex] || {};
+          const opt = getActiveBank();
+          const label = String(opt.label || `BANK ${activeBankIndex + 1}`);
 
           const fd = new FormData();
           fd.append("utr", $("utr").value.trim());
           fd.append("email", $("email").value.trim());
 
           fd.append("method", "BANK");
-          fd.append("methodIndex", String(activeIdx));
-          fd.append(
-            "methodLabel",
-            cfg.bankOptions?.[activeIdx]?.label || `Bank ${activeIdx + 1}`
-          );
+          fd.append("methodIndex", String(activeBankIndex));
+          fd.append("methodLabel", label);
+
           fd.append("amount", String($("amount").value || ""));
 
-          // ✅ include selected option info in request
-          fd.append(
-            "bankLabel",
-            String(opt.label || `BANK ${activeBankIndex + 1}`)
-          );
+          // Include selected bank option info
+          fd.append("bankLabel", label);
           fd.append("bankName", String(opt.bankName || ""));
           fd.append("accountNumber", String(opt.accountNumber || ""));
           fd.append("ifsc", String(opt.ifsc || ""));
@@ -626,9 +631,9 @@
             if (!r.ok)
               throw new Error(data?.error || `Submit failed (${r.status})`);
 
-            showSuccessAndCloseIframe();
             toast("Submitted ✅");
             btn.textContent = "Submitted";
+            showSuccessAndCloseIframe();
           } catch (err) {
             console.error(err);
             toast(err?.message || "Submit error");
