@@ -1,35 +1,36 @@
-
 {
   "branding": {
-    "bank":{
-      "title": "<strong></strong><strong>IMPS </strong>is for <strong>instant</strong> deposits:<br/>Limits: <strong>₹20,000 -  ₹100,000</strong><br/><br/><strong>RTGS</strong> is for <strong>instant</strong> deposits:<br/>Limits: <strong>₹101,000 - ₹500,000</strong> <br/><strong>NEFT</strong> is credited in <strong>up to 60 mins:</strong><br/>Limits: <strong>₹101,000 - ₹500,000 </strong>"
+    "bank": {
+      "title": "<strong>IMPS </strong>is for <strong>instant</strong> deposits:<br/>Limits: <strong>₹20,000 -  ₹200,000</strong><br/><strong>RTGS</strong> is for <strong>instant</strong> deposits:<br/>Limits: <strong>₹200,000 - ₹500,000</strong> <br/><strong>NEFT</strong> is credited in <strong>up to 60 mins:</strong><br/>Limits: <strong>₹200,000 - ₹500,000 </strong><br/><br/>"
     },
-    "upi":{
-      "title":"Send money and submit UTR for confirmation."
+    "upi": {
+      "title": "<strong>PLEASE ALWAYS USE THIS PAGE TO CHECK ACCOUNT AVAILABILITY BEFORE DEPOSITING</strong>"
     }
-},
+  },
   "upiOptions": [
-      {
+    {
       "label": "UPI 1",
-      "upiId": "sumit8788@mahb",
-      "qrImageUrl": "./image_1.png"
+      "upiId": "7435816448@okbizaxis",
+      "qrImageUrl": "./1768493207695-7435816448_okbizaxis.png"
     },
     {
-      "label": "UPI 2",
-      "upiId": "7435816448@ptyes",
-      "qrImageUrl": "./image_2.png"
+      "label": "UPI 2 - PhonePe",
+      "upiId": "8788812161-m2ad@axl",
+      "qrImageUrl": "./1768493712554-_8788812161_m2ad_axl.png"
+    },
+    {
+      "label": "UPI 3",
+      "upiId": "Sumit8788@mahb",
+      "qrImageUrl": "./1768494114894-Sumit8788_mahb__1_.png"
     }
-  ]
-  ,
-
+  ],
   "bankOptions": [
     {
-      "label": "Bank Transfer",
-      "bankName": "Bank of Maharashtra",
-      "accountNumber": "60547671038",
-      "ifsc": "MAHB0001230",
-      "accountHolder": "Mr. Sumit Sainath Sarode"
+      "label": "Bank Transfer ",
+      "bankName": "Union Bank Of India",
+      "accountNumber": "564302010026297",
+      "ifsc": "UBIN0556432",
+      "accountHolder": "Raju Damu Patarkar"
     }
   ]
-
 }
